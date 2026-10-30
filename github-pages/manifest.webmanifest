@@ -1,0 +1,17 @@
+{
+  "name": "ตรวจระยะจมเข็ม",
+  "short_name": "ตรวจเข็ม",
+  "description": "บันทึกและตรวจระยะจม 10 ครั้งสุดท้ายของเสาเข็มตอก ใช้ออฟไลน์ได้ ซิงก์ลง Google Sheets",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121615",
+  "theme_color": "#1d2321",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
