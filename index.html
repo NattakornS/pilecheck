@@ -49,6 +49,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:20px;line-height:1.2;m
 .sync i{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .sync.ok i{background:var(--ok)}.sync.pending i{background:var(--accent)}.sync.off i{background:var(--bad)}
 .sync.busy i{background:var(--info);animation:pulse 1s infinite}
+.sync.local i{background:var(--muted)}
 @keyframes pulse{50%{opacity:.3}}
 .sync span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -175,6 +176,7 @@ tr.cur td{background:color-mix(in srgb,var(--accent) 22%,transparent);font-weigh
     <div class="panel">
       <h2>เชื่อมต่อ Google Sheets</h2>
       <p class="hint">ใส่ลิงก์เว็บแอป (ลงท้ายด้วย /exec) และรหัส API จากเมนู ตรวจเข็ม → แอปมือถือ: ดูรหัส API ในไฟล์ Google Sheets</p>
+      <p class="note info" id="cfgUpNote" hidden>ไซต์งานและบันทึกเข็มที่อยู่ในเครื่องจะถูกส่งขึ้นชีตที่เชื่อมต่อ</p>
       <div><label for="cfgUrl">ลิงก์เว็บแอป</label><input id="cfgUrl" type="url" class="mono" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div><label for="cfgKey">รหัส API</label><input id="cfgKey" type="text" class="mono" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div class="grid2">
@@ -182,6 +184,15 @@ tr.cur td{background:color-mix(in srgb,var(--accent) 22%,transparent);font-weigh
         <button type="button" class="btn primary" id="cfgSave">บันทึก</button>
       </div>
       <div class="note" id="cfgOut" hidden></div>
+    </div>
+    <div class="panel">
+      <h2>ใช้โดยไม่ซิงก์</h2>
+      <div id="localOff">
+        <p class="hint">ไม่ต้องมี Google Sheets ข้อมูลเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น ออกรายงาน PDF ไม่ได้ และข้อมูลจะหายถ้าล้างข้อมูลเว็บไซต์หรือลบแอป เชื่อมต่อชีตภายหลังได้ ข้อมูลในเครื่องจะถูกส่งขึ้นชีต</p>
+        <button type="button" class="btn block" id="localBtn" style="margin-top:10px">ใช้โหมดออฟไลน์</button>
+      </div>
+      <p class="note ok" id="localOn" hidden>กำลังใช้โหมดออฟไลน์ ข้อมูลเก็บในเครื่องนี้เท่านั้น เชื่อมต่อ Google Sheets ด้านบนเมื่อต้องการซิงก์</p>
+      <div class="note" id="localOut" hidden></div>
     </div>
     <div class="panel" id="installPanel">
       <h2>ติดตั้งเป็นแอป</h2>

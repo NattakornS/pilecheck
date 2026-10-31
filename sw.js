@@ -5,7 +5,7 @@
  * - การเรียก Google Apps Script ไม่ผ่านแคช
  * เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์แอป
  */
-const VERSION = 'pilecheck-v1.0.0';
+const VERSION = 'pilecheck-v1.1.0';
 const TILES = 'pilecheck-tiles';
 const MAX_TILES = 400;
 

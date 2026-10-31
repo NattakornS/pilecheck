@@ -1,11 +1,12 @@
 /* ตรวจระยะจมเข็ม — PWA
  * ข้อมูลเก็บในเครื่อง (localStorage) และส่งขึ้น Google Sheets ผ่าน Apps Script API
  * ทุกการแก้ไขเข้าคิว (outbox) ก่อน แล้วค่อยส่งเมื่อมีสัญญาณ จึงใช้ตอนออฟไลน์ได้
+ * โหมดออฟไลน์ (cfg.mode === 'local'): ไม่ซิงก์เลย ข้อมูลอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น
  */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.0.0';
+  var APP_VERSION = '1.1.0';
   var DEF = { W: 4, H: 50, SAFE: 25, FS: 2.5, B: 22, L: 8, E: 0.75, N: 0.25, C: 1.5, FC: 350 };
   var KEYS = Object.keys(DEF);
   var EXTRA = ['owner', 'contractor', 'engineer', 'supervisor'];
@@ -18,6 +19,8 @@
   function getStr(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
 
   var cfg = load(LS.cfg, { url: '', key: '' });
+  function isLocal() { return cfg.mode === 'local'; }
+  function linked() { return !isLocal() && !!cfg.url && !!cfg.key; }
   var st = load(LS.state, null) || { sites: [], logs: [], outbox: [], errors: [], lastPull: 0, sheetUrl: '' };
   ['sites', 'logs', 'outbox', 'errors'].forEach(function (k) { if (!Array.isArray(st[k])) st[k] = []; });
   function save() { if (!put(LS.state, st)) toast('บันทึกข้อมูลในเครื่องไม่ได้ (พื้นที่เต็ม?)'); }
@@ -96,6 +99,7 @@
   var flushing = false, netOk = navigator.onLine, lastErr = '', settingsDirty = false;
 
   function enqueue(op, args) {
+    if (isLocal()) { save(); renderSync(); return; }
     st.outbox.push({ id: genId('Q'), op: op, args: args, t: Date.now() });
     save(); renderSync(); flush();
   }
@@ -113,7 +117,7 @@
   }
 
   function flush() {
-    if (flushing || !cfg.url || !cfg.key) { renderSync(); return Promise.resolve(); }
+    if (flushing || !linked()) { renderSync(); return Promise.resolve(); }
     flushing = true; renderSync();
     var step = function () {
       if (!st.outbox.length) return api('pull', []).then(function (d) {
@@ -144,7 +148,8 @@
 
   function renderSync() {
     var chip = $('syncChip'), t = $('syncText'), n = st.outbox.length, cls = 'sync ';
-    if (!cfg.url || !cfg.key) { cls += 'off'; t.textContent = 'ยังไม่ได้เชื่อมต่อ Google Sheets — แตะเพื่อตั้งค่า'; }
+    if (isLocal()) { cls += 'local'; t.textContent = 'โหมดออฟไลน์ · เก็บในเครื่องนี้เท่านั้น'; }
+    else if (!cfg.url || !cfg.key) { cls += 'off'; t.textContent = 'ยังไม่ได้เชื่อมต่อ Google Sheets — แตะเพื่อตั้งค่า'; }
     else if (flushing) { cls += 'busy'; t.textContent = n ? 'กำลังส่ง ' + n + ' รายการ…' : 'กำลังซิงก์…'; }
     else if (!netOk || !navigator.onLine) { cls += n ? 'pending' : 'off'; t.textContent = 'ออฟไลน์' + (n ? ' · รอส่ง ' + n + ' รายการ' : '') + ' · แตะเพื่อลองใหม่'; }
     else if (lastErr) { cls += 'off'; t.textContent = lastErr; }
@@ -153,7 +158,7 @@
     chip.className = cls;
   }
   $('syncChip').addEventListener('click', function () {
-    if (!cfg.url || !cfg.key) { openSetup(); return; }
+    if (!linked()) { openSetup(); return; }
     netOk = true; lastErr = ''; flush();
   });
   window.addEventListener('online', function () { netOk = true; flush(); });
@@ -203,7 +208,7 @@
   }
   function addPile(id, p) {
     var now = new Date(), uid = genId('P');
-    var row = { uid: uid, siteId: id, time: fmtTime(now), pile: p.pile, W: p.W, H: p.H, set10: p.set10, note: p.note, depth: p.depth, offset: p.offset };
+    var row = { uid: uid, siteId: id, time: fmtTime(now), ts: now.toISOString(), pile: p.pile, W: p.W, H: p.H, set10: p.set10, note: p.note, depth: p.depth, offset: p.offset };
     st.logs.push(row);
     enqueue('addPile', [id, Object.assign({}, p, { uid: uid, time: now.toISOString() })]);
     return row;
@@ -246,8 +251,11 @@
   function openSetup() {
     $('pageTitle').textContent = 'ตั้งค่า';
     $('cfgUrl').value = cfg.url || ''; $('cfgKey').value = cfg.key || '';
-    $('cfgOut').hidden = true; $('resetConfirm').hidden = true; $('resetAsk').hidden = false;
-    $('localInfo').textContent = 'ไซต์งาน ' + st.sites.length + ' ไซต์ · บันทึกเข็ม ' + st.logs.length + ' ต้น · รอส่ง ' + st.outbox.length + ' รายการ · แอปเวอร์ชัน ' + APP_VERSION;
+    $('cfgOut').hidden = true; $('localOut').hidden = true; $('resetConfirm').hidden = true; $('resetAsk').hidden = false;
+    $('localInfo').textContent = 'ไซต์งาน ' + st.sites.length + ' ไซต์ · บันทึกเข็ม ' + st.logs.length + ' ต้น' + (isLocal() ? ' · โหมดออฟไลน์' : ' · รอส่ง ' + st.outbox.length + ' รายการ') + ' · แอปเวอร์ชัน ' + APP_VERSION;
+    var hasData = st.sites.length > 0;
+    $('cfgUpNote').hidden = !(isLocal() && hasData);
+    $('localOn').hidden = !isLocal(); $('localOff').hidden = isLocal();
     paintInstall(); refreshErrors(); show('vSetup');
   }
   $('setupBtn').addEventListener('click', openSetup);
@@ -266,15 +274,45 @@
   });
   $('cfgSave').addEventListener('click', function () {
     var c = readCfgForm(); if (!validCfg(c)) return;
-    var changedSheet = cfg.url && cfg.url !== c.url;
+    var fromLocal = isLocal(), changedSheet = !fromLocal && cfg.url && cfg.url !== c.url;
     if (changedSheet && st.outbox.length) { cfgNote('bad', 'ยังมี ' + st.outbox.length + ' รายการที่ยังไม่ได้ส่งขึ้นชีตเดิม ส่งให้หมดก่อนเปลี่ยนลิงก์'); return; }
     cfgNote('info', 'กำลังเชื่อมต่อ…');
     api('ping', [], c).then(function () {
       cfg = c; put(LS.cfg, cfg);
-      if (changedSheet) { st.sites = []; st.logs = []; st.lastPull = 0; save(); }
-      netOk = true; lastErr = ''; toast('เชื่อมต่อ Google Sheets แล้ว');
+      if (fromLocal) queueLocalUpload();
+      else if (changedSheet) { st.sites = []; st.logs = []; st.lastPull = 0; save(); }
+      netOk = true; lastErr = ''; toast(fromLocal && st.outbox.length ? 'เชื่อมต่อแล้ว กำลังส่งข้อมูลในเครื่องขึ้นชีต' : 'เชื่อมต่อ Google Sheets แล้ว');
       flush(); gotoList();
     }, function (e) { cfgNote('bad', 'เชื่อมต่อไม่ได้: ' + esc(e.message)); });
+  });
+  // ย้ายจากโหมดออฟไลน์ไปชีต: ส่งทุกไซต์และทุกต้นขึ้นชีต (ชีตกันส่งซ้ำด้วยรหัสไซต์และ uid)
+  function queueLocalUpload() {
+    var t = Date.now();
+    var q = function (op, args) { st.outbox.push({ id: genId('Q'), op: op, args: args, t: t }); };
+    st.sites.forEach(function (s) {
+      var d = { id: s.id, create: true, title: s.title, desc: s.desc || '', lat: s.lat, lng: s.lng, settings: Object.assign({}, s.settings) };
+      EXTRA.forEach(function (k) { d[k] = s[k] || ''; });
+      q('saveSite', [d]);
+      q('saveSettings', [s.id, Object.assign({}, s.settings)]); // กรณีไซต์มีอยู่ในชีตแล้ว saveSite จะไม่แก้ค่าตั้ง
+    });
+    st.logs.forEach(function (r) {
+      if (!siteById(r.siteId)) return;
+      q('addPile', [r.siteId, { uid: r.uid, time: r.ts || parseTime(r.time), pile: r.pile, W: r.W, H: r.H, set10: r.set10, note: r.note, depth: r.depth, offset: r.offset }]);
+    });
+    save();
+  }
+  function parseTime(s) {
+    var m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{2})/);
+    return m ? new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5]).toISOString() : '';
+  }
+  $('localBtn').addEventListener('click', function () {
+    if (st.outbox.length) {
+      var o = $('localOut'); o.className = 'note bad'; o.hidden = false;
+      o.textContent = 'ยังมี ' + st.outbox.length + ' รายการที่ยังไม่ได้ส่งขึ้นชีต ส่งให้หมดก่อนเปลี่ยนเป็นโหมดออฟไลน์';
+      return;
+    }
+    cfg = Object.assign({}, cfg, { mode: 'local' }); put(LS.cfg, cfg);
+    lastErr = ''; toast('ใช้โหมดออฟไลน์แล้ว ข้อมูลเก็บในเครื่องนี้เท่านั้น'); gotoList();
   });
   function refreshErrors() {
     var has = st.errors.length > 0;
@@ -286,7 +324,7 @@
   }
   $('errClear').addEventListener('click', function () { st.errors = []; save(); refreshErrors(); });
   $('resetAsk').addEventListener('click', function () {
-    $('resetMsg').textContent = st.outbox.length ? 'มี ' + st.outbox.length + ' รายการที่ยังไม่ได้ส่งขึ้นชีต จะหายไปถ้าล้าง ข้อมูลในชีตไม่ได้รับผลกระทบ' : 'ล้างข้อมูลในเครื่องแล้วดึงใหม่จากชีต ข้อมูลในชีตไม่ได้รับผลกระทบ';
+    $('resetMsg').textContent = isLocal() ? 'โหมดออฟไลน์: ไซต์งานและบันทึกเข็มทั้งหมดจะหายถาวร เพราะไม่มีสำเนาในชีต' : st.outbox.length ? 'มี ' + st.outbox.length + ' รายการที่ยังไม่ได้ส่งขึ้นชีต จะหายไปถ้าล้าง ข้อมูลในชีตไม่ได้รับผลกระทบ' : 'ล้างข้อมูลในเครื่องแล้วดึงใหม่จากชีต ข้อมูลในชีตไม่ได้รับผลกระทบ';
     $('resetAsk').hidden = true; $('resetConfirm').hidden = false;
   });
   $('resetNo').addEventListener('click', function () { $('resetConfirm').hidden = true; $('resetAsk').hidden = false; });
@@ -427,7 +465,8 @@
 
   function resetSiteDel() { $('sDelConfirm').hidden = true; $('sDelAsk').hidden = false; }
   $('sDelAsk').addEventListener('click', function () {
-    $('sDelMsg').textContent = 'ลบ "' + cur.title + '" และบันทึกเข็มทั้งหมด ' + logsOf(cur.id).length + ' ต้น ทั้งในเครื่องและในชีต ย้อนกลับไม่ได้ (รายงาน PDF ที่ออกไปแล้วยังอยู่ใน Drive)';
+    $('sDelMsg').textContent = 'ลบ "' + cur.title + '" และบันทึกเข็มทั้งหมด ' + logsOf(cur.id).length + ' ต้น' +
+      (isLocal() ? ' ย้อนกลับไม่ได้' : ' ทั้งในเครื่องและในชีต ย้อนกลับไม่ได้ (รายงาน PDF ที่ออกไปแล้วยังอยู่ใน Drive)');
     $('sDelAsk').hidden = true; $('sDelConfirm').hidden = false;
   });
   $('sDelNo').addEventListener('click', resetSiteDel);
@@ -435,7 +474,7 @@
 
   $('reportBtn').addEventListener('click', function () {
     var o = $('reportOut'), b = $('reportBtn');
-    if (!cfg.url || !cfg.key) { o.className = 'note bad'; o.textContent = 'ยังไม่ได้เชื่อมต่อ Google Sheets'; o.hidden = false; return; }
+    if (!linked()) { o.className = 'note bad'; o.textContent = (isLocal() ? 'โหมดออฟไลน์ออกรายงาน PDF ไม่ได้ ' : 'ยังไม่ได้เชื่อมต่อ Google Sheets ') + '— ใช้ "คัดลอกสรุปส่งไลน์" แทน หรือเชื่อมต่อ Google Sheets ในหน้าตั้งค่า'; o.hidden = false; return; }
     if (!navigator.onLine) { o.className = 'note warn'; o.textContent = 'ออกรายงานต้องมีสัญญาณ ข้อมูลที่บันทึกไว้จะอยู่ครบ ลองใหม่เมื่อมีเน็ต'; o.hidden = false; return; }
     b.disabled = true; o.className = 'note info'; o.textContent = 'กำลังส่งข้อมูลที่ค้าง แล้วสร้างรายงาน PDF… (10–30 วินาที)'; o.hidden = false;
     var id = cur.id;
@@ -539,7 +578,7 @@
     var pile = $('pileId').value.trim() || (L.length ? nextId(L[L.length - 1].pile) : '') || ('ต้นที่ ' + (L.length + 1));
     var d = num($('depth').value), o = num($('offset').value);
     addPile(cur.id, { pile: pile, W: S.W, H: S.H, set10: set, note: $('note').value.trim(), depth: isFinite(d) ? d : '', offset: isFinite(o) ? o : '' });
-    toast('บันทึก ' + pile + (navigator.onLine ? '' : ' ไว้ในเครื่อง (จะส่งเมื่อมีสัญญาณ)'));
+    toast('บันทึก ' + pile + (isLocal() || navigator.onLine ? '' : ' ไว้ในเครื่อง (จะส่งเมื่อมีสัญญาณ)'));
     $('pileId').value = nextId(pile); ['set10', 'note', 'depth', 'offset'].forEach(function (k) { $(k).value = ''; });
     render();
   });
@@ -569,7 +608,7 @@
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
   paintTheme(); renderSync();
-  if (!cfg.url || !cfg.key) { openSetup(); }
+  if (!linked() && !isLocal()) { openSetup(); }
   else {
     var last = getStr(LS.site);
     if (last && siteById(last)) openSite(last); else gotoList();
