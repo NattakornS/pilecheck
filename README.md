@@ -7,6 +7,12 @@ Google Sheets ของคุณเองเป็นที่เก็บข้
 
 **[ตรวจระยะจมเข็ม](https://nattakorns.github.io/pilecheck/)**
 
+## วิดีโอสอนติดตั้ง
+
+[![วิดีโอสอนติดตั้งตรวจระยะจมเข็ม](https://img.youtube.com/vi/X9vPVhtyCB4/hqdefault.jpg)](https://youtu.be/X9vPVhtyCB4)
+
+กดที่ภาพเพื่อดูวิดีโอบน YouTube
+
 ## สิ่งที่ต้องเตรียม
 
 - บัญชี Google
